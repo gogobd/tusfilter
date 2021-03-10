@@ -300,6 +300,7 @@ class TusFilter(object):
         env.resp.headers['Cache-Control'] = 'no-store'
         env.resp.status = http.OK
 
+        
     def patch(self, env):
         if env.req.headers.get('Content-Type') != 'application/offset+octet-stream':
             raise InvalidContentTypeError()
@@ -308,21 +309,27 @@ class TusFilter(object):
         upload_checksum = env.req.headers.get('Upload-Checksum')
         if upload_checksum:
             algorisum, checksum_base64 = upload_checksum.split(None, 1)
-            if algorisum not in self.checksum_algorisums:
+            if algorisum not in self.checksum_algorithm:
                 raise ChecksumAlgorisumsNotSuppertedError()
             checksum = standard_b64decode(checksum_base64.encode('utf-8'))
             body = env.req.body
             if checksum != hashlib.sha1(body).digest():
                 raise ChecksumMismatchError()
-        current_offset = self.write_data(env)
-        if current_offset == self.get_end_length(env):
+       
+        upload_offset = self.get_current_offset(env)
+        upload_length = self.get_end_length(env)
+        if upload_offset == upload_length:
             self.finish_upload(env)
-        if current_offset > env.info['upload_length'] > 0:
-            raise ExceedUploadLengthError()
-
+        else:
+            current_offset = self.write_data(env)
+            if current_offset == self.get_end_length(env):
+                self.finish_upload(env)
+            if current_offset > env.info['upload_length'] > 0:
+                raise ExceedUploadLengthError()
         env.resp.headers['Upload-Offset'] = str(current_offset)
         env.resp.headers['Upload-Expires'] = self.get_fexpires(env)
         env.resp.status = http.NO_CONTENT
+
 
     def check_concatenation(self, env):
         upload_concat = env.req.headers.get('Upload-Concat')
